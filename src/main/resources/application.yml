@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: authentication-service
+
+  redis:
+    database: 5
+    host: localhost
+    port: 6379
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+  datasource:
+    url: jdbc:mysql://localhost:3307/justmop
+    username: root
+    password: root
+
+  cloud:
+    gateway:
+      routes:
+        - id: hello-service
+          uri: http://localhost:8081/
+          predicates:
+            - Path=/hello-api/**
+
+        - id: bye-service
+          uri: http://localhost:8082/
+          predicates:
+            - Path=/bye-api/**
+zuul:
+  routes:
+    hello-service:
+      path: /hello-api/**
+      url: http://localhost:8081
+    bye-service:
+      path: /bye-api/**
+      url: http://localhost:8082
+
+eureka:
+  client:
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8083/eureka
