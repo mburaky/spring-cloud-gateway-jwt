@@ -1,47 +1,50 @@
 package com.justmop.jwtdemo.security;
 
-import com.justmop.jwtdemo.security.jwt.JwtRequestFilter;
-import com.justmop.jwtdemo.services.MyUserDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.core.publisher.Mono;
 
-@EnableWebSecurity
-public class SecurityConfigurer extends WebSecurityConfigurerAdapter {
+@EnableWebFluxSecurity
+@EnableReactiveMethodSecurity
+public class SecurityConfigurer {
 
     @Autowired
-    private MyUserDetailsService myUserDetailsService;
+    private AuthenticationManager authenticationManager;
 
     @Autowired
-    private JwtRequestFilter jwtRequestFilter;
+    private SecurityContextRepository securityContextRepository;
 
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(myUserDetailsService);
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.csrf().disable()
-                .authorizeRequests().antMatchers("/authenticate").permitAll() // permit everyone to call authenticate endpoint
-                .anyRequest().authenticated() // any other requests require authentication
-                .and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS); // tell spring security NOT to create session
-
-        http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
-    }
-
-    @Override
     @Bean
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+        return http
+                .exceptionHandling()
+                .authenticationEntryPoint((swe, e) -> {
+                    return Mono.fromRunnable(() -> {
+                        swe.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                    });
+                }).accessDeniedHandler((swe, e) -> {
+                    return Mono.fromRunnable(() -> {
+                        swe.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                    });
+                }).and()
+                .csrf().disable()
+                .formLogin().disable()
+                .httpBasic().disable()
+                .authenticationManager(authenticationManager)
+                .securityContextRepository(securityContextRepository)
+                .authorizeExchange()
+                .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                .pathMatchers("/authenticate").permitAll()
+                .anyExchange().authenticated()
+                .and().build();
     }
 
     @Bean

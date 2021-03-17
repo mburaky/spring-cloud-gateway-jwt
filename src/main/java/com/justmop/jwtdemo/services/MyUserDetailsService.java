@@ -9,12 +9,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Optional;
 
 @Service
-public class MyUserDetailsService implements UserDetailsService {
+public class MyUserDetailsService {
 
     @Autowired
     private RedisTemplate<String, String> sessionRedis;
@@ -22,17 +23,10 @@ public class MyUserDetailsService implements UserDetailsService {
     @Autowired
     private ClientRepository clientRepository;
 
-    @Override
-    public UserDetails loadUserByUsername(String phoneNumber) throws UsernameNotFoundException {
-        // String otp = sessionRedis.opsForValue().get(phoneNumber);
+    public Mono<User> findByUsername(String phoneNumber) {
         String otp = "jwt";
-
         Optional<Client> client = clientRepository.findOneByPhone(phoneNumber);
-        if (client.isPresent()) {
-            return new User(client.get().getPhone(), otp, new ArrayList<>());
-        }
-
-        throw new UsernameNotFoundException("User not found");
+        return client.map(value -> Mono.just(new User(value.getPhone(), otp, new ArrayList<>())))
+                .orElseGet(Mono::empty);
     }
-
 }
